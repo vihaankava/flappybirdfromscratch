@@ -12,12 +12,19 @@ FPS = 60
 PIPE_SPAWN_INTERVAL = 1500  # milliseconds
 FALL_SPEED = 3  # Speed at which bird falls through pipe
 BASE_PIPE_SPEED = 3  # Initial pipe speed
+BACKGROUND_SPEED = 0.5  # Speed of background movement
 
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BLUE = (0, 0, 255)
 GREEN = (0, 255, 0, 128)  # Semi-transparent green (alpha = 128)
+BUILDING_COLORS = [
+    (100, 100, 100),  # Dark gray
+    (120, 120, 120),  # Medium gray
+    (140, 140, 140),  # Light gray
+    (160, 160, 160),  # Very light gray
+]
 
 # Set up the game window
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -29,6 +36,54 @@ GAME_STATE_START = 0
 GAME_STATE_PLAY = 1
 GAME_STATE_SUCKING = 2
 GAME_STATE_OVER = 3
+
+class Cityscape:
+    def __init__(self):
+        self.buildings = []
+        self.generate_buildings()
+        
+    def generate_buildings(self):
+        # Create initial set of buildings
+        x = 0
+        while x < SCREEN_WIDTH * 2:  # Generate enough buildings to cover screen twice
+            width = random.randint(30, 80)
+            height = random.randint(100, 300)
+            color = random.choice(BUILDING_COLORS)
+            self.buildings.append({
+                'x': x,
+                'width': width,
+                'height': height,
+                'color': color
+            })
+            x += width + random.randint(10, 30)  # Add some space between buildings
+            
+    def update(self):
+        # Move buildings to the left
+        for building in self.buildings:
+            building['x'] -= BACKGROUND_SPEED
+            
+        # Remove buildings that are off screen and add new ones
+        if self.buildings[0]['x'] + self.buildings[0]['width'] < 0:
+            last_building = self.buildings[-1]
+            new_x = last_building['x'] + last_building['width'] + random.randint(10, 30)
+            width = random.randint(30, 80)
+            height = random.randint(100, 300)
+            color = random.choice(BUILDING_COLORS)
+            self.buildings.append({
+                'x': new_x,
+                'width': width,
+                'height': height,
+                'color': color
+            })
+            self.buildings.pop(0)
+            
+    def draw(self):
+        # Draw buildings
+        for building in self.buildings:
+            if building['x'] + building['width'] > 0 and building['x'] < SCREEN_WIDTH:
+                pygame.draw.rect(screen, building['color'], 
+                               (building['x'], SCREEN_HEIGHT - building['height'],
+                                building['width'], building['height']))
 
 class Bird:
     def __init__(self):
@@ -147,6 +202,7 @@ def calculate_pipe_speed(score):
 # Initialize game objects
 bird = Bird()
 pipes = []
+cityscape = Cityscape()
 game_state = GAME_STATE_START
 last_pipe_time = 0
 score = 0
@@ -170,7 +226,10 @@ while True:
                     # Reset game
                     game_state = GAME_STATE_START
                     bird = Bird()  # Create a new bird instance
-                    pipes = []
+                    pipes = []  # Clear all pipes
+                    last_pipe_time = current_time  # Reset pipe spawn timer
+                    score = 0  # Reset score
+                    current_pipe_speed, speed_level = calculate_pipe_speed(score)  # Reset speed
                 bird.jump()
 
     # Clear screen
@@ -178,6 +237,10 @@ while True:
 
     # Update and draw based on game state
     if game_state == GAME_STATE_PLAY:
+        # Update and draw cityscape
+        cityscape.update()
+        cityscape.draw()
+        
         bird.update()
         bird.draw()
 
@@ -214,6 +277,9 @@ while True:
             game_state = GAME_STATE_SUCKING
 
     elif game_state == GAME_STATE_SUCKING:
+        # Draw cityscape (no update to keep it stationary)
+        cityscape.draw()
+        
         # Update sucking animation
         if bird.update_sucking():
             game_state = GAME_STATE_OVER
@@ -227,6 +293,9 @@ while True:
         draw_score(score, speed_level)
 
     elif game_state == GAME_STATE_START:
+        # Draw cityscape (no update to keep it stationary)
+        cityscape.draw()
+        
         # Draw start screen
         bird.draw()
         font = pygame.font.Font(None, 36)
@@ -235,6 +304,9 @@ while True:
         screen.blit(text, text_rect)
 
     elif game_state == GAME_STATE_OVER:
+        # Draw cityscape (no update to keep it stationary)
+        cityscape.draw()
+        
         # Draw game over screen
         font = pygame.font.Font(None, 36)
         text = font.render("Game Over! Press SPACE", True, BLACK)
