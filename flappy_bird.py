@@ -15,10 +15,10 @@ SCREEN_WIDTH = 400
 SCREEN_HEIGHT = 600
 FPS = 60
 PIPE_SPAWN_INTERVAL = 1500  # milliseconds
-FALL_SPEED = 8  # Increased from 3 to 8 for faster falling
-BASE_PIPE_SPEED = 3  # Initial pipe speed
+FALL_SPEED = 3  # Normal falling speed
+BASE_PIPE_SPEED = 2  # Initial pipe speed
 BACKGROUND_SPEED = 0.5  # Speed of background movement
-POWER_UP_SPAWN_CHANCE = 0.05  # 5% chance to spawn a power-up
+POWER_UP_SPAWN_CHANCE = 0.50  # 50% chance to spawn a power-up
 POWER_UP_DURATION = 5000  # 5 seconds duration for power-ups
 ENEMY_SPAWN_CHANCE = 0.2  # 20% chance to spawn an enemy
 FIREBALL_SPEED = 7  # Speed of fireballs
@@ -54,11 +54,22 @@ except:
     rain_sound = None
 
 # Colors
-WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
-GREEN = (0, 255, 0, 128)  # Semi-transparent green (alpha = 128)
-PACMAN_YELLOW = (255, 255, 0)  # Bright yellow for Pac-Man
+MAGENTA = (255, 0, 255)
+YELLOW = (255, 255, 0)
+CYAN = (0, 255, 255)
+
+# Mario and Luigi colors
+MARIO_RED = (230, 0, 0)  # Slightly darker red for Mario
+MARIO_BLUE = (30, 60, 255)  # Richer blue for overalls
+MARIO_SKIN = (255, 200, 150)  # Skin tone
+MARIO_BROWN = (101, 67, 33)  # Darker brown for hair and mustache
+MARIO_YELLOW = (255, 215, 0)  # Gold color for buttons
+LUIGI_GREEN = (40, 180, 40)  # Luigi's signature green
 DONKEY_KONG_BROWN = (139, 69, 19)  # Brown color for Donkey Kong
 DONKEY_KONG_RED = (255, 0, 0)  # Red color for Donkey Kong's tie
 POWER_PIPE_COLOR = (255, 215, 0)  # Gold color for Power Pipes
@@ -79,15 +90,21 @@ LIGHT_COLOR = (255, 255, 150)   # Brighter yellow for lit windows
 EMPIRE_STATE_COLOR = (150, 150, 150)  # Special color for Empire State Building
 SHIELD_COLOR = (0, 191, 255)  # Deep Sky Blue
 SHIELD_GLOW = (135, 206, 250)  # Light Sky Blue
-PIPE_COLOR = (0, 100, 0)  # Dark green for pipes
-PIPE_HIGHLIGHT = (0, 150, 0)  # Lighter green for pipe highlights
-PIPE_SHADOW = (0, 50, 0)  # Darker green for pipe shadows
+PIPE_COLOR = (10, 40, 10, 220)  # Very dark green, mostly opaque
+PIPE_HIGHLIGHT = (20, 60, 20, 180)  # Slightly lighter dark green, mostly opaque
+PIPE_SHADOW = (5, 20, 5, 180)  # Even darker green, mostly opaque
 SKY_COLOR = (135, 206, 235)  # Sky blue
 CLOUD_COLOR = (255, 255, 255)  # White for clouds
 CLOUD_SHADOW = (200, 200, 200)  # Light gray for cloud shadows
 RAIN_COLOR = (200, 200, 255, 128)  # Light blue for rain
 LIGHTNING_COLOR = (255, 255, 255)  # White for lightning
 WIND_PARTICLE_COLOR = (200, 200, 200, 64)  # Gray for wind particles
+
+# Mario colors
+MARIO_RED = (255, 0, 0)  # Mario's hat and shirt
+MARIO_BLUE = (0, 0, 255)  # Mario's overalls
+MARIO_BROWN = (139, 69, 19)  # Mario's hair and shoes
+MARIO_SKIN = (255, 198, 140)  # Mario's skin tone
 
 # Set up the game window
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -96,11 +113,14 @@ clock = pygame.time.Clock()
 
 # Game states
 GAME_STATE_START = 0
-GAME_STATE_PLAY = 1
-GAME_STATE_SUCKING = 2
-GAME_STATE_OVER = 3
-GAME_STATE_NAME_ENTRY = 4
-GAME_STATE_LEADERBOARD = 5
+GAME_STATE_PLAYING = 1
+GAME_STATE_OVER = 2  # Game over state
+GAME_STATE_LEADERBOARD = 3
+GAME_STATE_NAME_ENTRY = 4  # For entering name in leaderboard
+GAME_STATE_HELP = 5
+GAME_STATE_WINNING = 6  # Mario battle
+GAME_STATE_LUIGI_BATTLE = 7  # Luigi battle
+GAME_STATE_COUNTDOWN = 8  # 3-second countdown state
 
 class WeatherSystem:
     def __init__(self):
@@ -495,7 +515,7 @@ class Bird:
         self.trail_particles = []  # Add trail particles for more realistic movement
 
     def update(self):
-        if game_state == GAME_STATE_PLAY:
+        if game_state == GAME_STATE_PLAYING:
             self.velocity += self.gravity
             self.y += self.velocity
             
@@ -588,7 +608,7 @@ class Bird:
                                  self.width//2)
         
         # Draw Pac-Man body with highlight
-        pygame.draw.circle(screen, PACMAN_YELLOW,
+        pygame.draw.circle(screen, YELLOW,
                          (int(self.x + self.width/2), int(self.y + self.height/2)),
                          self.width//2)
         
@@ -643,8 +663,8 @@ class Bird:
         self.width = 30
         self.height = 30
         self.velocity = 0
-        self.gravity = 0.5
-        self.jump_strength = -8
+        self.gravity = 0.15
+        self.jump_strength = -4
         self.target_pipe = None
         self.is_falling_through = False
         self.mouth_angle = 0
@@ -984,6 +1004,609 @@ class DeathCutscene:
         # Draw screen flash
         self.screen.blit(flash_surface, (0, 0))
 
+class LuigiBattle:
+    def __init__(self):
+        self.phase = 0
+        self.timer = 0
+        self.luigi_x = SCREEN_WIDTH
+        self.luigi_y = SCREEN_HEIGHT // 2
+        self.flappy_original_pos = None
+        self.flash_timer = 0
+        self.battle_effects = []
+        self.fireballs = []  # List to store active fireballs
+        self.luigi_health = 150  # Luigi is stronger than Mario
+        self.flappy_health = 100
+        self.winner = None
+        self.dialogue_timer = 0
+        self.current_dialogue = ""
+        self.dialogue_phase = 0
+        self.countdown = 3
+        self.countdown_start = False
+        self.effect_timer = 0  # Timer for special effects
+        self.dialogues = [
+            "Luigi: HOW DARE YOU DEFEAT MY BROTHER!",
+            "Flappy: *Unfazed chirp*",
+            "Luigi: I WILL AVENGE HIM! PREPARE YOURSELF!",
+            "Flappy: *Battle-ready squawk*",
+            "Luigi: WITNESS THE POWER OF THE GREEN THUNDER!",
+            "Flappy: *Dodges gracefully*",
+            "Luigi: WHAT?! NOBODY HAS EVER DODGED THAT!",
+            "Flappy: *Powers up with intense glow*",
+            "Luigi: No... you're even stronger than before...",
+            "Luigi: MARIO... I'M SORRY... I FAILED YOU!",
+            "Flappy: *Triumphant victory cry*"
+        ]
+        
+    def start(self, flappy_pos):
+        self.flappy_original_pos = flappy_pos
+        self.timer = 0
+        self.phase = 0
+        
+    def add_battle_effect(self, x, y, color, effect_type=None):
+        self.battle_effects.append({
+            'x': x,
+            'y': y,
+            'color': color,
+            'size': 20,
+            'timer': 10,
+            'type': effect_type
+        })
+        
+    def update(self):
+        self.timer += 1
+        self.dialogue_timer += 1
+        self.effect_timer += 1
+        
+        # Handle countdown after victory
+        if self.countdown_start:
+            if self.timer % 60 == 0:
+                self.countdown -= 1
+                if self.countdown < 0:
+                    return True
+        
+        # Update battle effects
+        for effect in self.battle_effects[:]:
+            effect['timer'] -= 1
+            effect['size'] -= 1
+            if effect['timer'] <= 0:
+                self.battle_effects.remove(effect)
+                
+        # Update fireballs
+        for fireball in self.fireballs[:]:
+            fireball['x'] += fireball['dx']
+            fireball['y'] += fireball['dy']
+            fireball['timer'] -= 1
+            if fireball['timer'] <= 0:
+                self.fireballs.remove(fireball)
+            # Add flame trail
+            if self.timer % 2 == 0:
+                self.add_battle_effect(fireball['x'], fireball['y'], 
+                                     random.choice([(255, 165, 0), (255, 69, 0)]),
+                                     'flame_trail')
+        
+        # Phase 0: Luigi enters dramatically with a jump
+        if self.phase == 0:
+            self.luigi_x -= 6  # Faster than Mario
+            self.luigi_y = SCREEN_HEIGHT // 2 - math.sin(self.timer * 0.1) * 30  # Jumping motion
+            if self.luigi_x <= SCREEN_WIDTH - 100:
+                self.phase = 1
+                self.current_dialogue = self.dialogues[0]
+                self.dialogue_phase = 1
+                
+        # Phase 1: Battle sequence
+        elif self.phase == 1:
+            if self.timer % 45 == 0:  # Faster attacks than Mario
+                # Flappy attacks Luigi (stronger)
+                damage = random.randint(20, 30)
+                self.luigi_health -= damage
+                self.add_battle_effect(self.luigi_x + 25, self.luigi_y, (255, 255, 0))
+                
+                # Luigi attacks Flappy with green lightning
+                if random.random() > 0.4:  # 40% chance to miss
+                    damage = random.randint(10, 15)
+                    self.flappy_health -= damage
+                    
+                    # Main lightning bolt
+                    start_x = self.luigi_x + 25
+                    start_y = self.luigi_y
+                    end_x = self.flappy_original_pos[0]
+                    end_y = self.flappy_original_pos[1]
+                    
+                    # Create zigzag lightning path
+                    points = [(start_x, start_y)]
+                    current_x = start_x
+                    current_y = start_y
+                    steps = 5
+                    for i in range(steps):
+                        next_x = start_x + (end_x - start_x) * (i + 1) / steps
+                        next_y = start_y + (end_y - start_y) * (i + 1) / steps
+                        # Add some randomness to create zigzag
+                        offset = random.randint(-20, 20)
+                        points.append((next_x + offset, next_y))
+                    points.append((end_x, end_y))
+                    
+                    # Draw main lightning bolt
+                    for i in range(len(points) - 1):
+                        self.add_battle_effect(points[i][0], points[i][1], 
+                                             (100, 255, 100), 'lightning')
+                        # Add branching lightning
+                        if random.random() < 0.5:
+                            branch_x = points[i][0] + random.randint(-30, 30)
+                            branch_y = points[i][1] + random.randint(-30, 30)
+                            self.add_battle_effect(branch_x, branch_y,
+                                                 (100, 255, 100), 'lightning')
+                    
+                    # Add impact effects at the end
+                    for _ in range(5):
+                        self.add_battle_effect(
+                            end_x + random.randint(-20, 20),
+                            end_y + random.randint(-20, 20),
+                            (150, 255, 150),
+                            'lightning_impact'
+                        )
+                
+                # After attack, show next dialogue
+                if self.dialogue_phase < len(self.dialogues) - 1:
+                    self.dialogue_phase += 1
+                    self.current_dialogue = self.dialogues[self.dialogue_phase]
+                    self.dialogue_timer = 0
+                
+                # Make sure Flappy always wins
+                if self.luigi_health <= 0:
+                    self.winner = "flappy"
+                    self.phase = 2
+                    self.current_dialogue = self.dialogues[-1]
+                    
+        # Phase 2: Victory animation
+        elif self.phase == 2:
+            self.flash_timer += 1
+            if self.flash_timer >= 120:
+                self.countdown_start = True
+        
+        return False
+        
+    def draw(self, screen, bird):
+        # Draw countdown if active
+        if self.countdown_start and self.countdown >= 0:
+            font = pygame.font.Font(None, 74)
+            countdown_text = str(self.countdown) if self.countdown > 0 else "GO!"
+            text = font.render(countdown_text, True, (255, 0, 0))
+            text_rect = text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            screen.blit(text, text_rect)
+            return
+            
+        # Draw dialogue box and text
+        if self.current_dialogue:
+            dialogue_surface = pygame.Surface((SCREEN_WIDTH - 40, 80))
+            dialogue_surface.fill((255, 255, 255))
+            dialogue_surface.set_alpha(200)
+            screen.blit(dialogue_surface, (20, SCREEN_HEIGHT - 100))
+            
+            font = pygame.font.Font(None, 32)
+            text = font.render(self.current_dialogue, True, (0, 0, 0))
+            screen.blit(text, (30, SCREEN_HEIGHT - 80))
+        
+        # Draw health bars with labels
+        font = pygame.font.Font(None, 24)
+        flappy_label = font.render("Flappy", True, (0, 0, 0))
+        luigi_label = font.render("Luigi", True, (0, 0, 0))
+        
+        # Draw health bars
+        pygame.draw.rect(screen, (255, 0, 0), (10, 10, 100, 20))
+        pygame.draw.rect(screen, (0, 255, 0), (10, 10, self.flappy_health, 20))
+        screen.blit(flappy_label, (10, 35))
+        
+        pygame.draw.rect(screen, (255, 0, 0), (SCREEN_WIDTH - 110, 10, 100, 20))
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH - 110, 10, self.luigi_health * 100 // 150, 20))
+        screen.blit(luigi_label, (SCREEN_WIDTH - 110, 35))
+        
+        # Draw Luigi with enhanced features
+        # Hat
+        pygame.draw.rect(screen, LUIGI_GREEN, (self.luigi_x, self.luigi_y - 35, 50, 15))
+        pygame.draw.ellipse(screen, LUIGI_GREEN, (self.luigi_x - 5, self.luigi_y - 25, 60, 12))
+        # L emblem
+        pygame.draw.rect(screen, WHITE, (self.luigi_x + 20, self.luigi_y - 32, 12, 10))
+        pygame.draw.line(screen, LUIGI_GREEN, (self.luigi_x + 22, self.luigi_y - 30),
+                        (self.luigi_x + 22, self.luigi_y - 24), 2)
+        pygame.draw.line(screen, LUIGI_GREEN, (self.luigi_x + 22, self.luigi_y - 24),
+                        (self.luigi_x + 30, self.luigi_y - 24), 2)
+        
+        # Head and face
+        pygame.draw.ellipse(screen, MARIO_SKIN, (self.luigi_x + 10, self.luigi_y - 25, 30, 35))
+        
+        # Hair
+        for i in range(3):
+            pygame.draw.arc(screen, MARIO_BROWN,
+                          (self.luigi_x + 8 + i*10, self.luigi_y - 25, 10, 10),
+                          math.pi, 2*math.pi, 2)
+        
+        # Eyes
+        pygame.draw.ellipse(screen, WHITE, (self.luigi_x + 15, self.luigi_y - 20, 8, 10))
+        pygame.draw.ellipse(screen, WHITE, (self.luigi_x + 27, self.luigi_y - 20, 8, 10))
+        pygame.draw.ellipse(screen, (0, 0, 150), (self.luigi_x + 17, self.luigi_y - 18, 4, 6))
+        pygame.draw.ellipse(screen, (0, 0, 150), (self.luigi_x + 29, self.luigi_y - 18, 4, 6))
+        pygame.draw.circle(screen, WHITE, (self.luigi_x + 18, self.luigi_y - 17), 1)
+        pygame.draw.circle(screen, WHITE, (self.luigi_x + 30, self.luigi_y - 17), 1)
+        
+        # Nose and mustache (longer than Mario's)
+        pygame.draw.ellipse(screen, (200, 120, 80), (self.luigi_x + 22, self.luigi_y - 15, 8, 12))
+        pygame.draw.arc(screen, MARIO_BROWN, (self.luigi_x + 10, self.luigi_y - 10, 25, 12), 0, math.pi, 3)
+        pygame.draw.arc(screen, MARIO_BROWN, (self.luigi_x + 15, self.luigi_y - 10, 25, 12), 0, math.pi, 3)
+        
+        # Clothing
+        pygame.draw.rect(screen, LUIGI_GREEN, (self.luigi_x + 5, self.luigi_y, 40, 30))
+        pygame.draw.rect(screen, MARIO_BLUE, (self.luigi_x + 10, self.luigi_y + 10, 30, 20))
+        pygame.draw.rect(screen, MARIO_BLUE, (self.luigi_x + 12, self.luigi_y, 5, 15))
+        pygame.draw.rect(screen, MARIO_BLUE, (self.luigi_x + 33, self.luigi_y, 5, 15))
+        pygame.draw.circle(screen, MARIO_YELLOW, (self.luigi_x + 15, self.luigi_y + 12), 3)
+        pygame.draw.circle(screen, MARIO_YELLOW, (self.luigi_x + 35, self.luigi_y + 12), 3)
+        
+        # Expression based on health and dialogue phase
+        if self.luigi_health > 100:
+            # Angry, vengeful expression
+            # Intense eyebrows
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 15, self.luigi_y - 22),
+                           (self.luigi_x + 22, self.luigi_y - 25), 3)
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 28, self.luigi_y - 25),
+                           (self.luigi_x + 35, self.luigi_y - 22), 3)
+            # Determined mouth
+            pygame.draw.line(screen, (0, 0, 0), (self.luigi_x + 15, self.luigi_y - 5),
+                           (self.luigi_x + 35, self.luigi_y - 5), 3)
+            
+        elif self.luigi_health > 50:
+            # Battle expression
+            if self.timer % 30 < 15:  # Make mouth animate for shouting
+                # Open mouth shouting
+                pygame.draw.ellipse(screen, (0, 0, 0), (self.luigi_x + 18, self.luigi_y - 8, 14, 12))
+                pygame.draw.ellipse(screen, (150, 0, 0), (self.luigi_x + 20, self.luigi_y - 6, 10, 8))  # Tongue
+            else:
+                # Determined mouth
+                pygame.draw.line(screen, (0, 0, 0), (self.luigi_x + 15, self.luigi_y - 5),
+                               (self.luigi_x + 35, self.luigi_y - 5), 3)
+            # Intense eyebrows
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 15, self.luigi_y - 22),
+                           (self.luigi_x + 22, self.luigi_y - 24), 3)
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 28, self.luigi_y - 24),
+                           (self.luigi_x + 35, self.luigi_y - 22), 3)
+            
+        else:
+            # Devastated expression
+            # Sad eyebrows
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 15, self.luigi_y - 18),
+                           (self.luigi_x + 22, self.luigi_y - 23), 2)
+            pygame.draw.line(screen, MARIO_BROWN, (self.luigi_x + 28, self.luigi_y - 23),
+                           (self.luigi_x + 35, self.luigi_y - 18), 2)
+            # Trembling mouth (animated)
+            mouth_offset = math.sin(self.timer * 0.5) * 2
+            pygame.draw.arc(screen, (0, 0, 0),
+                          (self.luigi_x + 20, self.luigi_y - 8 + mouth_offset, 10, 8),
+                          math.pi, 2*math.pi, 2)
+            # Tears
+            if self.timer % 15 < 8:
+                pygame.draw.line(screen, (100, 149, 237), 
+                               (self.luigi_x + 18, self.luigi_y - 15),
+                               (self.luigi_x + 18, self.luigi_y - 5), 2)
+                pygame.draw.line(screen, (100, 149, 237),
+                               (self.luigi_x + 32, self.luigi_y - 15),
+                               (self.luigi_x + 32, self.luigi_y - 5), 2)
+        
+        # Draw battle effects
+        for effect in self.battle_effects:
+            effect_type = effect.get('type')
+            if effect_type == 'flame_trail':
+                # Draw flame trail with gradient
+                alpha_surface = pygame.Surface((effect['size']*2, effect['size']*2), pygame.SRCALPHA)
+                pygame.draw.circle(alpha_surface, (*effect['color'], 150),
+                                 (effect['size'], effect['size']), effect['size'])
+                screen.blit(alpha_surface, 
+                           (int(effect['x'])-effect['size'],
+                            int(effect['y'])-effect['size']))
+            elif effect_type == 'lightning':
+                # Draw lightning with glow effect
+                glow_size = effect['size'] + 4
+                # Outer glow
+                pygame.draw.circle(screen, (200, 255, 200),
+                                 (int(effect['x']), int(effect['y'])),
+                                 glow_size)
+                # Inner bright core
+                pygame.draw.circle(screen, (255, 255, 255),
+                                 (int(effect['x']), int(effect['y'])),
+                                 effect['size'])
+            elif effect_type == 'lightning_impact':
+                # Draw lightning impact with expanding ring
+                ring_size = effect['size'] + (10 - effect['timer']) * 2
+                pygame.draw.circle(screen, effect['color'],
+                                 (int(effect['x']), int(effect['y'])),
+                                 ring_size, 2)
+                # Add center glow
+                pygame.draw.circle(screen, (255, 255, 255),
+                                 (int(effect['x']), int(effect['y'])),
+                                 effect['size'] // 2)
+            else:
+                # Draw regular effects
+                pygame.draw.circle(screen, effect['color'],
+                                 (int(effect['x']), int(effect['y'])),
+                                 effect['size'])
+        
+        # Draw fireballs with flame core
+        for fireball in self.fireballs:
+            # Draw outer glow
+            for i, color in enumerate(fireball['color']):
+                size = fireball['size'] - i * 3
+                if size > 0:
+                    pygame.draw.circle(screen, color,
+                                     (int(fireball['x']), int(fireball['y'])),
+                                     size)
+            # Add white hot center
+            pygame.draw.circle(screen, (255, 255, 200),
+                             (int(fireball['x']), int(fireball['y'])),
+                             fireball['size'] // 3)
+        
+        # Draw Flappy Bird
+        bird.draw()
+
+class WinningCutscene:
+    def __init__(self):
+        self.phase = 0  # Animation phase
+        self.mario_health = 100
+        self.flappy_health = 100
+        self.mario_x = SCREEN_WIDTH
+        self.mario_y = SCREEN_HEIGHT // 2
+        self.flappy_original_pos = None
+        self.flash_timer = 0
+        self.battle_effects = []
+        self.fireballs = []  # List to store active fireballs
+        self.winner = None
+        self.dialogue_timer = 0
+        self.current_dialogue = ""
+        self.dialogue_phase = 0
+        self.countdown = 3
+        self.countdown_start = False
+        self.effect_timer = 0  # Timer for special effects
+        self.dialogues = [
+            "Mario: So, you're the one causing trouble in these pipes!",
+            "Flappy: ...",
+            "Mario: Not much of a talker, huh? Let's see how you handle this!",
+            "Flappy: *Angry bird noises*",
+            "Mario: Mama mia! You're stronger than you look!",
+            "Flappy: *Determined chirp*",
+            "Mario: Is that all you've got?!",
+            "Flappy: *INTENSE BATTLE CRY*",
+            "Mario: No... This can't be... IMPOSSIBLE!",
+            "Flappy: *Victorious chirp*"        
+        ]
+        
+    def start(self, flappy_pos):
+        self.flappy_original_pos = flappy_pos
+        self.phase = 0
+        self.timer = 0
+        self.mario_x = SCREEN_WIDTH
+        self.mario_health = 100
+        self.flappy_health = 100
+        self.winner = None
+        self.battle_effects = []
+        
+    def add_battle_effect(self, x, y, color, effect_type=None):
+        self.battle_effects.append({
+            'x': x,
+            'y': y,
+            'color': color,
+            'size': 20,
+            'timer': 10,
+            'type': effect_type
+        })
+        
+    def update(self):
+        self.timer += 1
+        self.dialogue_timer += 1
+        
+        # Handle countdown after victory
+        if self.countdown_start:
+            if self.timer % 60 == 0:  # Every second
+                self.countdown -= 1
+                if self.countdown < 0:
+                    return True  # Signal to resume game
+        
+        # Update battle effects
+        for effect in self.battle_effects[:]:  # Copy list to safely remove items
+            effect['timer'] -= 1
+            effect['size'] -= 1
+            if effect['timer'] <= 0:
+                self.battle_effects.remove(effect)
+        
+        # Phase 0: Mario enters from right
+        if self.phase == 0:
+            self.mario_x -= 5
+            if self.mario_x <= SCREEN_WIDTH - 100:
+                self.phase = 1
+                self.current_dialogue = self.dialogues[0]
+                self.dialogue_phase = 1
+                self.dialogue_timer = 0
+                
+        # Phase 1: Battle sequence
+        elif self.phase == 1:
+            # Attack sequence
+            if self.timer % 120 == 0:  # Attack every 2 seconds
+                # Flappy attacks Mario (stronger)
+                damage = random.randint(15, 25)
+                self.mario_health -= damage
+                self.add_battle_effect(self.mario_x + 25, self.mario_y, (255, 255, 0))
+                
+                # Mario attacks Flappy with fireballs
+                if random.random() > 0.3:  # 30% chance to miss
+                    damage = random.randint(5, 10)
+                    self.flappy_health -= damage
+                    # Add multiple fireballs in a spread pattern
+                    for _ in range(3):
+                        self.add_battle_effect(
+                            self.mario_x + 25,
+                            self.mario_y,
+                            (255, 0, 0),
+                            'fireball'
+                        )
+                    # Add impact effects
+                    for _ in range(5):
+                        self.add_battle_effect(
+                            self.flappy_original_pos[0] + random.randint(-20, 20),
+                            self.flappy_original_pos[1] + random.randint(-20, 20),
+                            (255, 100, 0),
+                            'impact'
+                        )
+                # After attack, show next dialogue
+                if self.dialogue_phase < len(self.dialogues) - 1:
+                    self.dialogue_phase += 1
+                    self.current_dialogue = self.dialogues[self.dialogue_phase]
+                    self.dialogue_timer = 0
+                
+                # Make sure Flappy always wins
+                if self.mario_health <= 0:
+                    self.winner = "flappy"
+                    self.phase = 2
+                    self.current_dialogue = self.dialogues[-1]  # Victory dialogue
+                    
+        # Phase 2: Victory animation
+        elif self.phase == 2:
+            self.flash_timer += 1
+            if self.flash_timer >= 120:  # After 2 seconds of flashing
+                self.countdown_start = True  # Start countdown
+            if self.flash_timer >= 60:  # After 1 second of victory animation
+                return True  # Cutscene complete
+                
+        return False
+        
+    def draw(self, screen, bird):
+        # Draw countdown if active
+        if self.countdown_start and self.countdown >= 0:
+            font = pygame.font.Font(None, 74)
+            countdown_text = str(self.countdown) if self.countdown > 0 else "GO!"
+            text = font.render(countdown_text, True, (255, 0, 0))
+            text_rect = text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            screen.blit(text, text_rect)
+            return
+            
+        # Draw dialogue box and text
+        if self.current_dialogue:
+            # Draw semi-transparent dialogue box
+            dialogue_surface = pygame.Surface((SCREEN_WIDTH - 40, 80))
+            dialogue_surface.fill((255, 255, 255))
+            dialogue_surface.set_alpha(200)
+            screen.blit(dialogue_surface, (20, SCREEN_HEIGHT - 100))
+            
+            # Draw dialogue text
+            font = pygame.font.Font(None, 32)
+            text = font.render(self.current_dialogue, True, (0, 0, 0))
+            screen.blit(text, (30, SCREEN_HEIGHT - 80))
+        
+        # Draw health bars with labels
+        font = pygame.font.Font(None, 24)
+        flappy_label = font.render("Flappy", True, (0, 0, 0))
+        mario_label = font.render("Mario", True, (0, 0, 0))
+        
+        # Draw health bars
+        pygame.draw.rect(screen, (255, 0, 0), (10, 10, 100, 20))  # Red background
+        pygame.draw.rect(screen, (0, 255, 0), (10, 10, self.flappy_health, 20))  # Green health
+        screen.blit(flappy_label, (10, 35))
+        
+        pygame.draw.rect(screen, (255, 0, 0), (SCREEN_WIDTH - 110, 10, 100, 20))  # Red background
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH - 110, 10, self.mario_health, 20))  # Green health
+        screen.blit(mario_label, (SCREEN_WIDTH - 110, 35))
+        
+        # Draw Mario with enhanced face
+        # Hat
+        pygame.draw.rect(screen, MARIO_RED, (self.mario_x, self.mario_y - 35, 50, 15))  # Main hat
+        pygame.draw.ellipse(screen, MARIO_RED, (self.mario_x - 5, self.mario_y - 25, 60, 12))  # Hat brim
+        # M emblem on hat
+        pygame.draw.rect(screen, WHITE, (self.mario_x + 20, self.mario_y - 32, 12, 10))  # M background
+        pygame.draw.line(screen, MARIO_RED, (self.mario_x + 22, self.mario_y - 30),
+                        (self.mario_x + 26, self.mario_y - 24), 2)  # M left
+        pygame.draw.line(screen, MARIO_RED, (self.mario_x + 26, self.mario_y - 24),
+                        (self.mario_x + 30, self.mario_y - 30), 2)  # M right
+        
+        # Head (more oval shaped)
+        pygame.draw.ellipse(screen, MARIO_SKIN, (self.mario_x + 10, self.mario_y - 25, 30, 35))
+        
+        # Hair
+        for i in range(3):  # Multiple hair strands
+            pygame.draw.arc(screen, MARIO_BROWN, 
+                          (self.mario_x + 8 + i*10, self.mario_y - 25, 10, 10),
+                          math.pi, 2*math.pi, 2)
+        
+        # Eyes with more detail
+        # Eye whites
+        pygame.draw.ellipse(screen, WHITE, (self.mario_x + 15, self.mario_y - 20, 8, 10))  # Left eye
+        pygame.draw.ellipse(screen, WHITE, (self.mario_x + 27, self.mario_y - 20, 8, 10))  # Right eye
+        # Pupils
+        pygame.draw.ellipse(screen, (0, 0, 150), (self.mario_x + 17, self.mario_y - 18, 4, 6))  # Left pupil
+        pygame.draw.ellipse(screen, (0, 0, 150), (self.mario_x + 29, self.mario_y - 18, 4, 6))  # Right pupil
+        # Eye highlights
+        pygame.draw.circle(screen, WHITE, (self.mario_x + 18, self.mario_y - 17), 1)  # Left highlight
+        pygame.draw.circle(screen, WHITE, (self.mario_x + 30, self.mario_y - 17), 1)  # Right highlight
+        
+        # Enhanced nose
+        pygame.draw.ellipse(screen, (200, 120, 80), (self.mario_x + 22, self.mario_y - 15, 8, 12))
+        
+        # Enhanced mustache
+        pygame.draw.arc(screen, MARIO_BROWN, (self.mario_x + 12, self.mario_y - 10, 20, 12), 0, math.pi, 3)  # Left side
+        pygame.draw.arc(screen, MARIO_BROWN, (self.mario_x + 18, self.mario_y - 10, 20, 12), 0, math.pi, 3)  # Right side
+        
+        # Shirt and overalls
+        pygame.draw.rect(screen, MARIO_RED, (self.mario_x + 5, self.mario_y, 40, 30))  # Shirt
+        pygame.draw.rect(screen, MARIO_BLUE, (self.mario_x + 10, self.mario_y + 10, 30, 20))  # Overalls
+        # Overall straps
+        pygame.draw.rect(screen, MARIO_BLUE, (self.mario_x + 12, self.mario_y, 5, 15))  # Left strap
+        pygame.draw.rect(screen, MARIO_BLUE, (self.mario_x + 33, self.mario_y, 5, 15))  # Right strap
+        # Buttons
+        pygame.draw.circle(screen, YELLOW, (self.mario_x + 15, self.mario_y + 12), 3)  # Left button
+        pygame.draw.circle(screen, YELLOW, (self.mario_x + 35, self.mario_y + 12), 3)  # Right button
+        
+        # Expression based on health (more detailed)
+        if self.mario_health > 70:
+            # Happy mouth with teeth
+            pygame.draw.arc(screen, (0, 0, 0), (self.mario_x + 15, self.mario_y - 8, 20, 15), 0, math.pi, 2)
+            pygame.draw.rect(screen, WHITE, (self.mario_x + 18, self.mario_y - 8, 14, 3))  # Teeth
+        elif self.mario_health > 30:
+            # Determined expression
+            pygame.draw.line(screen, (0, 0, 0), (self.mario_x + 15, self.mario_y - 5),
+                           (self.mario_x + 35, self.mario_y - 5), 3)
+            # Furrowed brows
+            pygame.draw.line(screen, MARIO_BROWN, (self.mario_x + 15, self.mario_y - 22),
+                           (self.mario_x + 22, self.mario_y - 20), 2)
+            pygame.draw.line(screen, MARIO_BROWN, (self.mario_x + 28, self.mario_y - 20),
+                           (self.mario_x + 35, self.mario_y - 22), 2)
+        else:
+            # Worried expression with open mouth
+            pygame.draw.ellipse(screen, (0, 0, 0), (self.mario_x + 20, self.mario_y - 8, 10, 8))
+            pygame.draw.ellipse(screen, (150, 0, 0), (self.mario_x + 22, self.mario_y - 6, 6, 4))  # Tongue
+            # Worried eyebrows
+            pygame.draw.line(screen, MARIO_BROWN, (self.mario_x + 15, self.mario_y - 20),
+                           (self.mario_x + 22, self.mario_y - 23), 2)
+            pygame.draw.line(screen, MARIO_BROWN, (self.mario_x + 28, self.mario_y - 23),
+                           (self.mario_x + 35, self.mario_y - 20), 2)
+        
+        # Draw Flappy Bird (use existing bird sprite)
+        bird.draw()
+        
+        # Draw battle effects
+        for effect in self.battle_effects:
+            pygame.draw.circle(screen, effect['color'], (int(effect['x']), int(effect['y'])), effect['size'])
+        
+        # Draw victory flash
+        if self.phase == 2:
+            if self.flash_timer % 10 < 5:  # Flash every 5 frames
+                flash_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+                flash_surface.fill((255, 255, 255))
+                flash_surface.set_alpha(100)
+                screen.blit(flash_surface, (0, 0))
+                
+            # Draw winner text
+            font = pygame.font.Font(None, 74)
+            if self.winner == "flappy":
+                text = font.render("FLAPPY WINS!", True, (255, 255, 0))
+            else:
+                text = font.render("MARIO WINS!", True, MARIO_RED)
+            text_rect = text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            screen.blit(text, text_rect)
+
 class Leaderboard:
     def __init__(self):
         self.scores = []
@@ -1282,27 +1905,31 @@ def draw_score(score, speed_level):
             break
 
 def calculate_pipe_speed(score):
-    # Double speed for every 10 points
-    speed_level = 2 ** (score // 10)  # This will give 1, 2, 4, 8, etc. for every 10 points
-    return BASE_PIPE_SPEED * speed_level, speed_level
+    speed_level = score // 10
+    # Instead of doubling, add 0.25 for each level
+    speed_increase = 0.25 * speed_level
+    return BASE_PIPE_SPEED + speed_increase, speed_level
 
 # Initialize game objects
 bird = Bird()
 pipes = []
 cityscape = Cityscape()
 donkey_kong = DonkeyKong()
+weather_system = WeatherSystem()
+leaderboard = Leaderboard()
+winning_cutscene = WinningCutscene()
+death_cutscene = DeathCutscene(screen)
+luigi_battle = LuigiBattle()
 game_state = GAME_STATE_START
+countdown_start = 0  # For tracking countdown timer
 last_pipe_time = 0
 score = 0
 current_pipe_speed, speed_level = calculate_pipe_speed(score)
-death_cutscene = DeathCutscene(screen)
-leaderboard = Leaderboard()
 player_name = ""
 name_input_active = False
 power_ups = []
 enemies = []  # Add enemies list
 fireballs = []  # Add fireballs list
-weather_system = WeatherSystem()
 
 # Main game loop
 while True:
@@ -1315,22 +1942,21 @@ while True:
         if event.type == pygame.KEYDOWN:
             if game_state == GAME_STATE_NAME_ENTRY:
                 if event.key == pygame.K_RETURN:
-                    if 3 <= len(player_name) <= 10:
+                    if player_name and player_name.strip():
                         leaderboard.add_score(player_name, score)
                         game_state = GAME_STATE_LEADERBOARD
-                        name_input_active = False
+                    else:
+                        game_state = GAME_STATE_START
                 elif event.key == pygame.K_BACKSPACE:
                     player_name = player_name[:-1]
                 elif len(player_name) < 10 and event.unicode.isalnum():
                     player_name += event.unicode
             elif event.key == pygame.K_SPACE:
                 if game_state == GAME_STATE_START:
-                    print("Starting new game")
-                    game_state = GAME_STATE_PLAY
+                    game_state = GAME_STATE_PLAYING
                     score = 0
                     current_pipe_speed, speed_level = calculate_pipe_speed(score)
                 elif game_state == GAME_STATE_OVER:
-                    print("Resetting game")
                     game_state = GAME_STATE_START
                     bird = Bird()
                     pipes = []
@@ -1348,19 +1974,20 @@ while True:
                     last_pipe_time = current_time
                     score = 0
                     current_pipe_speed, speed_level = calculate_pipe_speed(score)
-                elif game_state == GAME_STATE_PLAY:
+                elif game_state == GAME_STATE_PLAYING:
                     bird.jump()
-            elif event.key == pygame.K_a and game_state == GAME_STATE_PLAY:
+            elif event.key == pygame.K_a and game_state == GAME_STATE_PLAYING:
                 # Shoot fireball
                 fireballs.append(Fireball(bird.x + bird.width, bird.y + bird.height/2))
 
+# ... (rest of the code remains the same)
     # Clear screen
     screen.fill(WHITE)
 
     # Update and draw based on game state
-    if game_state == GAME_STATE_PLAY:
-        # Update and draw cityscape
-        cityscape.update()
+    if game_state == GAME_STATE_PLAYING:
+        # Update bird position
+        bird.update()
         cityscape.draw()
         
         bird.update()
@@ -1401,6 +2028,18 @@ while True:
             if not pipe.scored and pipe.x + pipe.width < bird.x:
                 score += 1
                 pipe.scored = True
+                
+                # Check for cutscene triggers
+                if score == 10:  # Mario battle at 10 points
+                    game_state = GAME_STATE_WINNING
+                    winning_cutscene = WinningCutscene()
+                    winning_cutscene.start((bird.x, bird.y))
+                    print("Starting Mario battle!")
+                elif score == 30:  # Luigi battle at 30 points
+                    game_state = GAME_STATE_LUIGI_BATTLE
+                    luigi_battle = LuigiBattle()
+                    luigi_battle.start((bird.x, bird.y))
+                    print("Starting Luigi battle!")
                 
                 # Check if it's a power pipe
                 if pipe.is_power_pipe and not pipe.power_effect_active:
@@ -1451,10 +2090,7 @@ while True:
             # Check collision with bird
             if enemy.get_rect().colliderect(bird.get_rect()):
                 if not bird.shield_active:  # Only trigger collision if shield is not active
-                    print("Collision with enemy")
-                    if collision_sound:
-                        collision_sound.play()
-                    game_state = GAME_STATE_SUCKING
+                    game_state = GAME_STATE_OVER
                     break
             
             # Remove enemies that are off screen
@@ -1485,8 +2121,7 @@ while True:
 
         # Check for collisions
         if check_collision(bird, pipes):
-            print("Game state changing to SUCKING")
-            game_state = GAME_STATE_SUCKING
+            game_state = GAME_STATE_OVER
 
         # Check if player beat previous leader
         if leaderboard.check_beat_previous_leader(score):
@@ -1497,11 +2132,10 @@ while True:
         leaderboard.update_beat_message()
         leaderboard.draw_beat_message(screen)
 
-    elif game_state == GAME_STATE_SUCKING:
+    elif game_state == GAME_STATE_OVER:
         if not death_cutscene.is_active:
             death_cutscene.start((bird.x, bird.y))
         if not death_cutscene.update():
-            print("Game state changing to OVER")
             game_state = GAME_STATE_OVER
             if game_over_sound:
                 game_over_sound.play()
@@ -1510,7 +2144,6 @@ while True:
         
         # Update sucking animation
         if bird.update_sucking():
-            print("Game state changing to OVER")
             game_state = GAME_STATE_OVER
             if game_over_sound:
                 game_over_sound.play()
@@ -1524,8 +2157,7 @@ while True:
         draw_score(score, speed_level)
 
     elif game_state == GAME_STATE_START:
-        print("In START state")
-        # Draw cityscape (no update to keep it stationary)
+        # Draw background
         cityscape.draw()
         
         # Draw start screen
@@ -1586,6 +2218,35 @@ while True:
         screen.blit(submit_text, (SCREEN_WIDTH//2 - submit_text.get_width()//2, 
                                 SCREEN_HEIGHT//2 + 60))
 
+    elif game_state == GAME_STATE_WINNING:
+        if winning_cutscene.update():
+            game_state = GAME_STATE_COUNTDOWN
+            countdown_start = pygame.time.get_ticks()
+            print("Mario battle complete! Starting 3-second countdown...")
+            # Add bonus points for beating Mario
+            score += 5
+            print(f"Bonus points awarded! New score: {score}")
+        # Draw background
+        cityscape.draw()
+        
+        # Draw winning cutscene
+        winning_cutscene.draw(screen, bird)
+
+    elif game_state == GAME_STATE_LUIGI_BATTLE:
+        if luigi_battle.update():
+            game_state = GAME_STATE_COUNTDOWN
+            countdown_start = pygame.time.get_ticks()
+            print("Luigi battle complete! Starting 3-second countdown...")
+            # Add bonus points for beating Luigi
+            score += 10
+            print(f"Bonus points awarded! New score: {score}")
+        
+        # Draw background
+        cityscape.draw()
+        
+        # Draw Luigi battle
+        luigi_battle.draw(screen, bird)
+
     elif game_state == GAME_STATE_LEADERBOARD:
         # Draw background
         cityscape.draw()
@@ -1598,6 +2259,34 @@ while True:
         continue_text = font.render("Press SPACE to continue", True, BLACK)
         screen.blit(continue_text, (SCREEN_WIDTH//2 - continue_text.get_width()//2, 
                                   SCREEN_HEIGHT - 50))
+
+    elif game_state == GAME_STATE_COUNTDOWN:
+        # Draw background
+        cityscape.draw()
+        bird.draw()
+        
+        # Calculate remaining countdown time
+        elapsed = (pygame.time.get_ticks() - countdown_start) // 1000  # Convert to seconds
+        remaining = 3 - elapsed
+        
+        if remaining > 0:
+            # Draw countdown number
+            font = pygame.font.Font(None, 72)
+            text = font.render(str(remaining), True, BLACK)
+            text_rect = text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            screen.blit(text, text_rect)
+        else:
+            # Countdown finished
+            if game_state == GAME_STATE_COUNTDOWN:
+                # Reset game objects but keep score
+                bird = Bird()
+                pipes = []
+                enemies = []
+                fireballs = []
+                power_ups = []
+                current_pipe_speed, speed_level = calculate_pipe_speed(score)
+                game_state = GAME_STATE_PLAYING
+                print(f"Countdown complete! Restarting with score {score}...")
 
     # Update weather
     weather_system.update()
