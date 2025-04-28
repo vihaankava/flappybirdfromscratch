@@ -1619,23 +1619,40 @@ class Leaderboard:
         self.beat_message_duration = 180  # 3 seconds at 60 FPS
         self.beat_message_scale = 1.0
         self.beat_message_growing = True
+        # Check if running in browser (Pygbag)
+        self.is_browser = hasattr(sys, 'platform') and sys.platform.startswith('emscripten')
 
     def load_scores(self):
         try:
-            if os.path.exists(LEADERBOARD_FILE):
-                with open(LEADERBOARD_FILE, 'r') as f:
-                    self.scores = json.load(f)
+            if self.is_browser:
+                import asyncio
+                import javascript
+                scores_json = javascript.window.localStorage.getItem('flappybird_leaderboard')
+                if scores_json:
+                    self.scores = json.loads(scores_json)
+                else:
+                    self.scores = []
+                    self.save_scores()
             else:
-                # Create empty leaderboard file if it doesn't exist
-                self.scores = []
-                self.save_scores()
+                if os.path.exists(LEADERBOARD_FILE):
+                    with open(LEADERBOARD_FILE, 'r') as f:
+                        self.scores = json.load(f)
+                else:
+                    # Create empty leaderboard file if it doesn't exist
+                    self.scores = []
+                    self.save_scores()
         except Exception as e:
             print(f"Error loading leaderboard: {e}")
             self.scores = []
 
     def save_scores(self):
-        with open(LEADERBOARD_FILE, 'w') as f:
-            json.dump(self.scores, f)
+        if self.is_browser:
+            import javascript
+            scores_json = json.dumps(self.scores)
+            javascript.window.localStorage.setItem('flappybird_leaderboard', scores_json)
+        else:
+            with open(LEADERBOARD_FILE, 'w') as f:
+                json.dump(self.scores, f)
 
     def add_score(self, name, score):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2294,4 +2311,4 @@ while True:
 
     # Update display
     pygame.display.flip()
-    clock.tick(FPS) 
+    clock.tick(FPS)  
