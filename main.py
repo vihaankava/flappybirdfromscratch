@@ -1,45 +1,82 @@
 import asyncio
+import pygame
+import random
+import os
+import math
+import json
 import sys
+from datetime import datetime
+
+from flappy_bird import Bird, Pipe, Cityscape, WeatherSystem, Leaderboard
+from flappy_bird import PowerUp, Enemy, Fireball
+from flappy_bird import DonkeyKong, DeathCutscene, LuigiBattle, WinningCutscene
+from flappy_bird import check_collision, draw_score, calculate_pipe_speed
+
+SCREEN_WIDTH = 400
+SCREEN_HEIGHT = 600
+FPS = 60
+
+GAME_STATE_START = 0
+GAME_STATE_PLAYING = 1
+GAME_STATE_OVER = 2
+GAME_STATE_NAME_ENTRY = 3
+GAME_STATE_LEADERBOARD = 4
+GAME_STATE_WINNING = 5
+GAME_STATE_LUIGI_BATTLE = 6
+GAME_STATE_COUNTDOWN = 7
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+LEADERBOARD_FILE = 'leaderboard.json'
+
+pygame.init()
+pygame.mixer.init()  # Initialize the mixer for sound effects
+
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Flappy Bird")
+clock = pygame.time.Clock()
 
 is_browser = hasattr(sys, 'platform') and sys.platform.startswith('emscripten')
 
-async def main():
-    if is_browser:
-        print("Running in browser environment, waiting for filesystem initialization...")
-        for i in range(10):  # Give filesystem time to initialize
-            await asyncio.sleep(0.1)
-    
-    import pygame
-    import random
-    import os
-    import math
-    import json
-    from datetime import datetime
-    
-    SCREEN_WIDTH = 400
-    SCREEN_HEIGHT = 600
-    FPS = 60
-    
-    GAME_STATE_START = 0
-    GAME_STATE_PLAYING = 1
-    GAME_STATE_OVER = 2
-    GAME_STATE_NAME_ENTRY = 3
-    GAME_STATE_LEADERBOARD = 4
-    GAME_STATE_WINNING = 5
-    GAME_STATE_LUIGI_BATTLE = 6
-    GAME_STATE_COUNTDOWN = 7
-    
-    WHITE = (255, 255, 255)
-    BLACK = (0, 0, 0)
-    
-    LEADERBOARD_FILE = 'leaderboard.json'
-    
-    pygame.init()
-    pygame.mixer.init()  # Initialize the mixer for sound effects
-    
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Flappy Bird")
-    clock = pygame.time.Clock()
+jump_sound = None
+score_sound = None
+collision_sound = None
+game_over_sound = None
+power_pipe_sound = None
+lightning_sound = None
+rain_sound = None
+
+bird = None
+pipes = []
+cityscape = None
+donkey_kong = None
+weather_system = None
+leaderboard = None
+winning_cutscene = None
+death_cutscene = None
+luigi_battle = None
+
+game_state = GAME_STATE_START
+countdown_start = 0
+last_pipe_time = 0
+score = 0
+current_pipe_speed = 0
+speed_level = 0
+player_name = ""
+name_input_active = False
+
+power_ups = []
+enemies = []
+fireballs = []
+
+NAME_INPUT_BOX = pygame.Rect(SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2, 300, 40)
+
+async def initialize_game():
+    """Initialize game objects and load resources"""
+    global jump_sound, score_sound, collision_sound, game_over_sound, power_pipe_sound, lightning_sound, rain_sound
+    global bird, pipes, cityscape, donkey_kong, weather_system, leaderboard, winning_cutscene, death_cutscene, luigi_battle
+    global game_state, countdown_start, last_pipe_time, score, current_pipe_speed, speed_level, player_name, power_ups, enemies, fireballs
     
     # Load sound effects
     try:
@@ -53,18 +90,6 @@ async def main():
     except Exception as e:
         print(f"Warning: Sound files not found. Error: {e}")
         print("Game will run without sound effects.")
-        jump_sound = None
-        score_sound = None
-        collision_sound = None
-        game_over_sound = None
-        power_pipe_sound = None
-        lightning_sound = None
-        rain_sound = None
-    
-    from flappy_bird import Bird, Pipe, Cityscape, WeatherSystem, Leaderboard
-    from flappy_bird import PowerUp, Enemy, Fireball
-    from flappy_bird import DonkeyKong, DeathCutscene, LuigiBattle, WinningCutscene
-    from flappy_bird import check_collision, draw_score, calculate_pipe_speed
     
     bird = Bird()
     pipes = []
@@ -78,19 +103,27 @@ async def main():
     
     game_state = GAME_STATE_START
     countdown_start = 0
-    last_pipe_time = 0
+    last_pipe_time = pygame.time.get_ticks()
     score = 0
     current_pipe_speed, speed_level = calculate_pipe_speed(score)
     player_name = ""
-    name_input_active = False
     
     power_ups = []
     enemies = []
     fireballs = []
     
-    NAME_INPUT_BOX = pygame.Rect(SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2, 300, 40)
-    
     print("Game initialized successfully!")
+
+async def main():
+    """Main game loop"""
+    global game_state, countdown_start, last_pipe_time, score, current_pipe_speed, speed_level, player_name
+    global bird, pipes, cityscape, donkey_kong, weather_system, leaderboard, winning_cutscene, death_cutscene, luigi_battle
+    global power_ups, enemies, fireballs
+    
+    if is_browser:
+        print("Running in browser environment")
+    
+    await initialize_game()
     
     while True:
         current_time = pygame.time.get_ticks()
