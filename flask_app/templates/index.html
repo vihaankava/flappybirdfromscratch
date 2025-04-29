@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird - Vihaan Kava</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Flappy Bird</h1>
+        <p>A sophisticated Flappy Bird clone with advanced features!</p>
+        
+        <div class="menu">
+            <a href="{{ url_for('game') }}" class="btn">Play Game</a>
+            <button id="leaderboardBtn" class="btn">View Leaderboard</button>
+            <button id="instructionsBtn" class="btn">Instructions</button>
+        </div>
+        
+        <div id="leaderboard" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Leaderboard</h2>
+                <table id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Name</th>
+                            <th>Score</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Leaderboard entries will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="instructions" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>How to Play</h2>
+                <ul>
+                    <li>Press <strong>SPACE</strong> to make the bird jump</li>
+                    <li>Press <strong>A</strong> to shoot fireballs</li>
+                    <li>Avoid pipes and enemies</li>
+                    <li>Collect power-ups for special abilities</li>
+                    <li>Beat special boss battles at score milestones</li>
+                </ul>
+                <h3>Special Features:</h3>
+                <ul>
+                    <li>Dynamic weather system</li>
+                    <li>Power-ups and shields</li>
+                    <li>Enemy characters</li>
+                    <li>Boss battles</li>
+                    <li>Realistic cityscape background</li>
+                </ul>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Created by Vihaan Kava</p>
+        </footer>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+</body>
+</html>

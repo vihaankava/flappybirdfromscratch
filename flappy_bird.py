@@ -1927,35 +1927,38 @@ def calculate_pipe_speed(score):
     speed_increase = 0.25 * speed_level
     return BASE_PIPE_SPEED + speed_increase, speed_level
 
-# Initialize game objects
-bird = Bird()
-pipes = []
+# Initialize shared game objects (needed for imports)
+weather_system = WeatherSystem()
 cityscape = Cityscape()
 donkey_kong = DonkeyKong()
-weather_system = WeatherSystem()
-leaderboard = Leaderboard()
-winning_cutscene = WinningCutscene()
-death_cutscene = DeathCutscene(screen)
-luigi_battle = LuigiBattle()
-game_state = GAME_STATE_START
-countdown_start = 0  # For tracking countdown timer
-last_pipe_time = 0
-score = 0
-current_pipe_speed, speed_level = calculate_pipe_speed(score)
-player_name = ""
-name_input_active = False
-power_ups = []
-enemies = []  # Add enemies list
-fireballs = []  # Add fireballs list
 
-# Main game loop
-while True:
-    current_time = pygame.time.get_ticks()
-    
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+if __name__ == "__main__":
+    # Initialize game objects
+    bird = Bird()
+    pipes = []
+    leaderboard = Leaderboard()
+    winning_cutscene = WinningCutscene()
+    death_cutscene = DeathCutscene(screen)
+    luigi_battle = LuigiBattle()
+    game_state = GAME_STATE_START
+    countdown_start = 0  # For tracking countdown timer
+    last_pipe_time = 0
+    score = 0
+    current_pipe_speed, speed_level = calculate_pipe_speed(score)
+    player_name = ""
+    name_input_active = False
+    power_ups = []
+    enemies = []  # Add enemies list
+    fireballs = []  # Add fireballs list
+
+    # Main game loop
+    while True:
+        current_time = pygame.time.get_ticks()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
         if event.type == pygame.KEYDOWN:
             if game_state == GAME_STATE_NAME_ENTRY:
                 if event.key == pygame.K_RETURN:
@@ -2311,4 +2314,4 @@ while True:
 
     # Update display
     pygame.display.flip()
-    clock.tick(FPS)  
+    clock.tick(FPS) 

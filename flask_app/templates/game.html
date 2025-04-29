@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Game - Vihaan Kava</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="game-container">
+        <div id="game-area">
+            <canvas id="game-canvas" width="400" height="600"></canvas>
+            
+            <!-- Game UI Overlays -->
+            <div id="start-screen" class="game-overlay">
+                <h2>Flappy Bird</h2>
+                <p>Press SPACE to Start</p>
+            </div>
+            
+            <div id="game-over" class="game-overlay hidden">
+                <h2>Game Over</h2>
+                <p>Your Score: <span id="final-score">0</span></p>
+                <div id="name-input-container">
+                    <label for="player-name">Enter your name:</label>
+                    <input type="text" id="player-name" maxlength="10" placeholder="Your Name">
+                    <button id="submit-score">Submit Score</button>
+                </div>
+                <button id="play-again">Play Again</button>
+                <a href="{{ url_for('index') }}" class="btn">Back to Menu</a>
+            </div>
+            
+            <div id="leaderboard-screen" class="game-overlay hidden">
+                <h2>Leaderboard</h2>
+                <div id="leaderboard-entries"></div>
+                <button id="continue-btn">Continue</button>
+            </div>
+        </div>
+        
+        <!-- Game Controls -->
+        <div class="game-controls">
+            <button id="jump-btn" class="control-btn">Jump (Space)</button>
+            <button id="fire-btn" class="control-btn">Fire (A)</button>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+</body>
+</html>
